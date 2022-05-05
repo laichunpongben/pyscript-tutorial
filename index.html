@@ -1,0 +1,129 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>CSV Explorer</title>
+
+        <link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />
+        <link href="img/favicon.png" rel="icon">
+
+        <!-- Google Web Fonts -->
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"> 
+
+        <!-- Font Awesome -->
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/all.min.css" rel="stylesheet">
+
+        <!-- Customized Bootstrap Stylesheet -->
+        <link href="css/style.css" rel="stylesheet">
+
+        <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+
+        <!-- - './static/wheels/fasttext_wheel-0.9.2-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl' -->
+        <py-env>
+            - pandas
+        </py-env>
+    </head>
+    <body style="padding:5"> 
+        <div class="bg-primary font-weight-bold mb-3">
+            <span>HK Time: </span>
+            <span id="timestamp_updater"><br></span>
+            <py-script>
+                <!-- Beware of IndentationError -->
+                <!-- https://github.com/pyscript/pyscript/blob/main/pyscriptjs/src/pyscript.py -->
+import datetime
+
+from js import setInterval
+from pyodide import to_js
+
+
+def update_timestamp(elem):
+    elem.write(
+        format(datetime.datetime.now(), "%Y/%m/%d %H:%M:%S")
+    )
+
+elem = Element("timestamp_updater")
+_ = setInterval(
+    to_js(lambda: update_timestamp(elem)),
+    1000  # Update every 1000 ms
+)
+                </py-script> 
+        </div>
+        <br>
+        <div>
+            <label for="filename" class="font-weight-bold mb-3">File name:</label>
+            <input type="text" id="filename" name="filename" class="d-flex flex-column align-items-center border flex-1 mr-3 border-gray-300 p-2 rounded px-4 mb-4">
+            <button id="filename-btn" class="btn btn-primary py-md-2 px-md-4 font-weight-semi-bold mt-2" type="submit" pys-onclick="load_csv">Load file!</button>
+            <button id="reset-btn" class="btn btn-primary py-md-2 px-md-4 font-weight-semi-bold mt-2" type="submit" pys-onclick="reset">Reset!</button>
+        </div>
+        <br>
+        <div class="mb-4">
+            <span id="load-status">Pick a csv file</span>
+        </div>
+        <br>
+        <div class="font-weight-bold mb-3">This loads a csv into pandas dataframe</div>
+        <div class="bg-primary border">
+            <span id="df-container"></span>
+        </div>
+        <br>
+        <div class="font-weight-bold mb-3">This converts the dataframe to json</div>
+        <div class="bg-primary border">
+            <span id="json-container"></span>
+        </div>
+        <py-script>
+import json
+import time
+
+from pyodide.http import open_url
+import pandas as pd
+
+def update_df_container(elem, df):
+    elem.write(df)
+
+def update_json_container(elem, df):
+    parsed = json.loads(df.to_json(orient="records"))
+    elem.write(json.dumps(parsed, indent=4))
+
+def load_csv(*args, **kwargs):
+    filename_elem = Element("filename")
+    filename = filename_elem.element.value
+
+    load_status_elem = Element("load-status")
+    load_status_elem.clear()
+
+    if len(filename) > 0:
+        f = open_url(f"./data/{filename}")
+        if "Error code: 404" not in f.getvalue():
+            start = time.time()
+            df = pd.read_csv(f)
+
+            df_container_elem = Element("df-container")
+            df_container_elem.clear()
+            update_df_container(df_container_elem, df)
+
+            json_container_elem = Element("json-container")
+            json_container_elem.clear()
+            update_json_container(json_container_elem, df)
+
+            end = time.time()
+            elapsed = end - start
+
+            load_status_elem.write(f"{filename} is loaded successfully! Rendering took {round(elapsed, 4)} seconds!")
+        else:
+            load_status_elem.write(f"Failed to load {filename}! Please check the spelling!")
+
+def reset(*args, **kwargs):
+    filename_elem = Element("filename")
+    filename_elem.clear()
+
+    load_status_elem = Element("load-status")
+    load_status_elem.write("Pick a csv file")
+
+    df_container_elem = Element("df-container")
+    df_container_elem.clear()
+
+    json_container_elem = Element("json-container")
+    json_container_elem.clear()
+        </py-script>
+    </body>
+</html>
